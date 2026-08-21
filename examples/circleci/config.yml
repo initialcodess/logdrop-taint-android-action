@@ -1,0 +1,49 @@
+# LogDrop Taint (Android) on CircleCI.
+#
+# No macOS executor and no Android SDK: the analyzer reads source and needs only a JVM,
+# so this runs on the cheapest Linux image CircleCI offers.
+version: 2.1
+
+jobs:
+  security-scan:
+    docker:
+      - image: cimg/openjdk:17.0
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - logdrop-taint-android-v0.1.0
+      - run:
+          name: Install LogDrop Taint
+          command: |
+            curl -fsSL -o install.sh \
+              https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/v0.1.0/examples/install-logdrop-taint.sh
+            chmod +x install.sh
+            LOGDROP_VERSION=v0.1.0 LOGDROP_DIR="$HOME/logdrop" ./install.sh
+      - save_cache:
+          key: logdrop-taint-android-v0.1.0
+          paths:
+            - ~/logdrop
+      - run:
+          name: Scan
+          command: |
+            java -jar "$HOME/logdrop/logdrop-taint-android-v0.1.0.jar" app/src \
+              --sarif logdrop-taint.sarif --repo-root "$PWD" \
+              --verbose --fail-on-findings
+      - run:
+          name: Report to the panel
+          # `when: always` matters: the scan exits non-zero when it finds something, and
+          # a report with findings is the one worth having.
+          when: always
+          command: |
+            curl -fsSL -o report.sh \
+              https://raw.githubusercontent.com/initialcodess/logdrop-taint-action/v1/examples/report-to-panel.sh
+            APP_NAME="$CIRCLE_PROJECT_REPONAME" VERSION="$CIRCLE_BRANCH" \
+            COMMIT="$CIRCLE_SHA1" bash report.sh logdrop-taint.sarif
+      - store_artifacts:
+          path: logdrop-taint.sarif
+
+workflows:
+  security:
+    jobs:
+      - security-scan

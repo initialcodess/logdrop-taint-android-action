@@ -1,0 +1,37 @@
+# LogDrop Taint (Android) on Bitrise. A linux/android stack already has a JDK.
+workflows:
+  security-scan:
+    envs:
+      - LOGDROP_VERSION: v0.1.0
+    steps:
+      - activate-ssh-key: {}
+      - git-clone: {}
+      - script:
+          title: Install LogDrop Taint
+          inputs:
+            - content: |
+                #!/usr/bin/env bash
+                set -euo pipefail
+                curl -fsSL -o install.sh \
+                  "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_VERSION/examples/install-logdrop-taint.sh"
+                chmod +x install.sh
+                LOGDROP_DIR="$BITRISE_SOURCE_DIR/.logdrop" ./install.sh
+      - script:
+          title: Scan
+          inputs:
+            - content: |
+                #!/usr/bin/env bash
+                set -euo pipefail
+                java -jar "$BITRISE_SOURCE_DIR/.logdrop/logdrop-taint-android-$LOGDROP_VERSION.jar" app/src \
+                  --sarif logdrop-taint.sarif --repo-root "$BITRISE_SOURCE_DIR" \
+                  --verbose --fail-on-findings
+      - script:
+          title: Report to the panel
+          is_always_run: true
+          inputs:
+            - content: |
+                #!/usr/bin/env bash
+                curl -fsSL -o report.sh \
+                  https://raw.githubusercontent.com/initialcodess/logdrop-taint-action/v1/examples/report-to-panel.sh
+                APP_NAME="$BITRISE_APP_TITLE" VERSION="$BITRISE_GIT_BRANCH" \
+                COMMIT="$BITRISE_GIT_COMMIT" bash report.sh logdrop-taint.sarif || true

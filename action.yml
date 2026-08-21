@@ -1,0 +1,156 @@
+name: "LogDrop Taint (Android)"
+description: "Taint (data-flow) analysis for Android/Kotlin source. Your source never leaves the runner; only SARIF is produced."
+author: "Initial Code Software Solutions"
+
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  license:
+    description: "Your LogDrop licence key. Keep it in a repository secret. It is verified offline; no data is sent anywhere."
+    required: true
+  path:
+    description: "The directory to scan, relative to the repository root."
+    required: false
+    default: "."
+  repo-root:
+    description: "The root that SARIF paths are relative to. Code Scanning can bind a finding to a file only through a repo-root path."
+    required: false
+    default: ${{ github.workspace }}
+  sarif-file:
+    description: "Path of the SARIF file to write."
+    required: false
+    default: "logdrop-taint.sarif"
+  fail-on-findings:
+    description: "Fail the step when there are findings. Use it as a CI gate."
+    required: false
+    default: "false"
+  annotations:
+    description: "Show findings as a box above the line in the pull request. Free; no Code Scanning licence needed."
+    required: false
+    default: "true"
+  upload-sarif:
+    description: "Upload the SARIF to Code Scanning. If Code Scanning is off on your repository the step warns and moves on rather than breaking the build."
+    required: false
+    default: "true"
+  include-tests:
+    description: "Scan test code too. Test fixtures are where fake credentials live, so they are skipped by default."
+    required: false
+    default: "false"
+  snippets:
+    description: "Include the offending line and ±2 lines of context in the report (on by default). Set to 'false' and the report carries only the rule and file:line — not a fragment of your code leaves."
+    required: false
+    default: "true"
+  panel-url:
+    description: "The panel address, if reports should be sent to the LogDrop panel. LEFT EMPTY, nothing is sent (the default). The only thing sent is the SARIF, never your source."
+    required: false
+    default: ""
+  bundle-id:
+    description: "The application id (e.g. com.company.app). Required when panel-url is set — the panel merges reports into one app under it."
+    required: false
+    default: ""
+  analyzer-version:
+    description: "Which analyzer version to download. The default is the one tested with this action release — you should not need to change it."
+    required: false
+    default: "v0.1.0"
+
+outputs:
+  sarif-file:
+    description: "Path of the SARIF file that was written."
+    value: ${{ inputs.sarif-file }}
+  findings:
+    description: "How many findings were reported."
+    value: ${{ steps.scan.outputs.findings }}
+
+runs:
+  using: composite
+  steps:
+    # UBUNTU, not macOS. The iOS analyzer links against Apple frameworks and has no
+    # choice; this one is a JVM program, and a Linux runner costs a tenth as much.
+    # Nothing here requires the Android SDK either — only the source is read.
+    - name: Download the analyzer
+      shell: bash
+      env:
+        VERSION: ${{ inputs.analyzer-version }}
+      run: |
+        set -euo pipefail
+        curl -fsSL --retry 3 -o "$RUNNER_TEMP/install.sh" \
+          "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/${VERSION}/examples/install-logdrop-taint.sh"
+        chmod +x "$RUNNER_TEMP/install.sh"
+        LOGDROP_VERSION="$VERSION" LOGDROP_DIR="$RUNNER_TEMP/logdrop" "$RUNNER_TEMP/install.sh"
+
+    - name: Scan
+      id: scan
+      shell: bash
+      env:
+        LOGDROP_LICENSE: ${{ inputs.license }}
+        SCAN_PATH: ${{ inputs.path }}
+        REPO_ROOT: ${{ inputs.repo-root }}
+        SARIF_FILE: ${{ inputs.sarif-file }}
+        FAIL_ON: ${{ inputs.fail-on-findings }}
+        ANNOTATE: ${{ inputs.annotations }}
+        INCLUDE_TESTS: ${{ inputs.include-tests }}
+        SNIPPETS: ${{ inputs.snippets }}
+        VERSION: ${{ inputs.analyzer-version }}
+      run: |
+        set -uo pipefail
+        jar="$RUNNER_TEMP/logdrop/logdrop-taint-android-${VERSION}.jar"
+        args=("$SCAN_PATH" --sarif "$SARIF_FILE" --repo-root "$REPO_ROOT")
+        [ "$ANNOTATE" = "true" ] && args+=(--github-annotations)
+        [ "$INCLUDE_TESTS" = "true" ] && args+=(--include-tests)
+        [ "$SNIPPETS" = "false" ] && args+=(--no-snippets)
+        [ "$FAIL_ON" = "true" ] && args+=(--fail-on-findings)
+
+        java -jar "$jar" "${args[@]}"
+        code=$?
+
+        # The count is read from the SARIF rather than scraped from the output: a
+        # message people improve is a message that silently changes shape.
+        findings=$(python3 -c "import json;print(len(json.load(open('$SARIF_FILE'))['runs'][0]['results']))" 2>/dev/null || echo 0)
+        echo "findings=$findings" >> "$GITHUB_OUTPUT"
+
+        {
+          echo "## LogDrop Taint (Android)"
+          echo ""
+          if [ "$findings" -eq 0 ]; then
+            echo "No findings."
+          else
+            echo "| Rule | File | Line |"
+            echo "|---|---|---|"
+            python3 -c "
+        import json
+        for r in json.load(open('$SARIF_FILE'))['runs'][0]['results']:
+            loc = r['locations'][0]['physicalLocation']
+            print('| ' + r['ruleId'] + ' | ' + loc['artifactLocation']['uri'] + ' | ' + str(loc['region']['startLine']) + ' |')
+        "
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        # Exit codes are passed through unchanged: 1 findings, 2 licence, 3 config.
+        # Collapsing them would tell a developer whose licence lapsed that their code
+        # has a vulnerability.
+        exit $code
+
+    - name: Upload to Code Scanning
+      if: ${{ inputs.upload-sarif == 'true' && always() }}
+      continue-on-error: true
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.sarif-file }}
+
+    - name: Send the report to the panel
+      if: ${{ inputs.panel-url != '' && always() }}
+      shell: bash
+      env:
+        PANEL_URL: ${{ inputs.panel-url }}
+        BUNDLE_ID: ${{ inputs.bundle-id }}
+        LOGDROP_LICENSE: ${{ inputs.license }}
+        APP_NAME: ${{ github.event.repository.name }}
+        VERSION: ${{ github.ref_name }}
+        COMMIT: ${{ github.sha }}
+        SARIF_FILE: ${{ inputs.sarif-file }}
+      run: |
+        curl -fsSL --retry 3 -o "$RUNNER_TEMP/report.sh" \
+          "https://raw.githubusercontent.com/initialcodess/logdrop-taint-action/v1/examples/report-to-panel.sh"
+        bash "$RUNNER_TEMP/report.sh" "$SARIF_FILE"

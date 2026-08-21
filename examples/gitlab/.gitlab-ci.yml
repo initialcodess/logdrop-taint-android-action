@@ -1,0 +1,31 @@
+# LogDrop Taint (Android) on GitLab CI. Any JDK 17 image will do.
+logdrop-taint:
+  stage: test
+  image: eclipse-temurin:17-jdk
+  variables:
+    LOGDROP_VERSION: "v0.1.0"
+  cache:
+    key: "logdrop-taint-android-$LOGDROP_VERSION"
+    paths:
+      - .logdrop/
+  script:
+    - apt-get update -qq && apt-get install -y -qq curl python3
+    - |
+      curl -fsSL -o install.sh \
+        "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_VERSION/examples/install-logdrop-taint.sh"
+      chmod +x install.sh
+      LOGDROP_DIR="$CI_PROJECT_DIR/.logdrop" ./install.sh
+    - |
+      java -jar ".logdrop/logdrop-taint-android-$LOGDROP_VERSION.jar" app/src \
+        --sarif logdrop-taint.sarif --repo-root "$CI_PROJECT_DIR" \
+        --verbose --fail-on-findings
+  after_script:
+    - |
+      curl -fsSL -o report.sh \
+        https://raw.githubusercontent.com/initialcodess/logdrop-taint-action/v1/examples/report-to-panel.sh
+      APP_NAME="$CI_PROJECT_NAME" VERSION="$CI_COMMIT_REF_NAME" \
+      COMMIT="$CI_COMMIT_SHA" bash report.sh logdrop-taint.sarif || true
+  artifacts:
+    when: always
+    paths:
+      - logdrop-taint.sarif
