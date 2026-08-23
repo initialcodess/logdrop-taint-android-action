@@ -10,7 +10,7 @@
 //
 // then `./gradlew logdropTaint`.
 
-val logdropVersion = "v0.3.0"
+val logdropVersion = "v0.4.0"
 val logdropDir = layout.buildDirectory.dir("logdrop").get().asFile
 
 tasks.register("logdropInstall") {
