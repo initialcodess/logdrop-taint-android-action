@@ -1,6 +1,6 @@
 # LogDrop Taint (Android)
 
-Taint (data-flow) analysis for **Android/Kotlin source**, emitting **SARIF 2.1.0**.
+Taint (data-flow) analysis for **Android source — Kotlin and Java**, emitting **SARIF 2.1.0**.
 
 It follows a value from a *source* — what the user typed, what another app sent through
 an Intent, what a server returned, a constant in the code — to a *sink*, and reports the
@@ -59,7 +59,7 @@ same three steps — download, verify, run.
 | User, network or Intent data reaches a `WebView` unsanitised | CWE-79 |
 | User or network data is concatenated into a SQL query | CWE-89 |
 | Personal data is written to the log | CWE-532 |
-| Personal data or credentials go into `SharedPreferences` in the clear | CWE-312 |
+| Personal data or credentials go into local storage in the clear — `SharedPreferences`, DataStore, Room, a SQLite row, a file | CWE-312 |
 | A key hardcoded in the source reaches `SecretKeySpec` | CWE-321 |
 | Personal data or a credential is copied to the clipboard | CWE-200 |
 | User or network data is built into a selection clause instead of `selectionArgs` | CWE-943 |
