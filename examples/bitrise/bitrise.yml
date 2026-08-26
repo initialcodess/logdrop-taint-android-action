@@ -2,7 +2,7 @@
 workflows:
   security-scan:
     envs:
-      - LOGDROP_VERSION: v0.5.0
+      - LOGDROP_VERSION: v0.6.0
     steps:
       - activate-ssh-key: {}
       - git-clone: {}
