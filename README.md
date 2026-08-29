@@ -46,11 +46,68 @@ jobs:
 Findings appear three ways, all free on every plan: a box above the line in *Files
 changed*, a table in the job summary, and the failed check that blocks the merge.
 
-## Everywhere else
+## Using it without GitHub (your machine, your server)
 
-Working recipes under [`examples/`](examples): CircleCI, GitLab CI, Jenkins, Bitrise,
-and a Gradle task for scanning from the developer's own machine. All of them are the
-same three steps — download, verify, run.
+The analyzer is **a single jar** and needs only a JVM — no Android SDK, no Gradle,
+no macOS. So you are not tied to GitHub Actions:
+
+```bash
+# Download and verify it once (change the version as needed)
+V=v0.8.0
+curl -fsSL -o install.sh \
+  "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$V/examples/install-logdrop-taint.sh"
+chmod +x install.sh
+LOGDROP_VERSION=$V LOGDROP_DIR="$HOME/logdrop" ./install.sh   # checks the SHA-256
+
+# Run it
+export LOGDROP_LICENSE="LOGDROP...."
+java -jar "$HOME/logdrop/logdrop-taint-android-$V.jar" app/src \
+  --sarif report.sarif --verbose --fail-on-findings
+```
+
+Where that helps:
+
+- **On a developer machine** — scan your own code before you push.
+- **On your own build server** (Jenkins, TeamCity, Bitrise, a spare box): the two
+  commands above are the whole build step. Exit code `1` means findings.
+- **As a Gradle task** — see [`examples/gradle`](examples/gradle).
+- **On a self-hosted runner** — this action works as-is.
+
+The `--sarif` output is standard SARIF 2.1.0; open it in a SARIF viewer or feed it
+into your own dashboard.
+
+**Ready-made recipes:** [`examples/`](examples) has working setups for CircleCI,
+GitLab CI, Jenkins, Bitrise and Gradle — all built on the same install script.
+
+## Where you see the findings
+
+All three are **free and work on every GitHub plan**:
+
+1. **An inline box on the pull request** — the finding appears above the relevant
+   line in the "Files changed" view.
+2. **The job summary** — a location / rule / finding table on the run page.
+3. **The CI gate** — with `fail-on-findings: "true"`, findings block the merge.
+
+If **Code Scanning** is enabled on your repository, the SARIF is uploaded there as
+well. That feature is free on public repositories and depends on GitHub's paid Code
+Security licence on private ones; without a licence the step warns and moves on —
+it **does not break the build**.
+
+## Test code is skipped
+
+Test fixtures are where fake credentials live, and nothing in the code distinguishes
+`password = "test"` in a test helper from the real thing — same write, same type,
+same field name. Files under `src/test` or `src/androidTest`, or named `*Test.kt` /
+`*Test.java`, are left out by default.
+
+It is not done quietly — the step prints what it skipped:
+
+```
+Skipped 214 test file(s). Use --include-tests to scan them.
+```
+
+A file named directly on the command line is always scanned, whatever it is called.
+Set `include-tests: "true"` to scan them anyway.
 
 ## What it finds
 
@@ -67,8 +124,57 @@ same three steps — download, verify, run.
 `EncryptedSharedPreferences` is the **fix**, not the bug, and is never reported — even
 though it is used through exactly the same `edit().putString(...)` calls.
 
-Test code is skipped by default (`src/test`, `src/androidTest`, `*Test.kt`) and the
-count is printed rather than passed over in silence.
+What a value is also comes from the name it is read from: `cvvEditText.text` is a
+CVV, while `searchEditText.text` is only user input and produces nothing — logging
+your own search term is not a leak.
+
+It follows flows across functions and across files, and does not report data that
+passed through a sanitiser. Sanitising is **label-specific**: escaping HTML stops
+the injection but does not stop the data being personal — an escaped email written
+to the log is still a finding.
+
+## Sending reports to the LogDrop panel (optional)
+
+If you want to track findings over time, see the binary (Layer 1) and source scans
+for the same app on one screen, and carry "this is a false positive" decisions
+across scans, you can send the report to the panel:
+
+```yaml
+- uses: initialcodess/logdrop-taint-android-action@v0
+  with:
+    license: ${{ secrets.LOGDROP_LICENSE }}
+    path: app/src
+    bundle-id: com.company.app           # required when sending to the panel
+    panel-url: https://panel.logdrop.io
+```
+
+**Off by default.** Without `panel-url` nothing is sent and the scan stays entirely
+local.
+
+Sending needs three things together — `panel-url`, `license` and `bundle-id`. Miss
+any one and nothing is sent. **`bundle-id` must be the id registered for that
+project in the panel**: an id the panel does not recognise is refused and the step
+fails, so a typo is loud rather than silent.
+
+Not on GitHub Actions? Every recipe under [`examples/`](examples) ends by calling
+[`examples/report-to-panel.sh`](examples/report-to-panel.sh), which does the same
+POST from CircleCI, GitLab, Jenkins, Bitrise or a laptop. It does nothing until you
+set all three of `PANEL_URL`, `LOGDROP_LICENSE` and `BUNDLE_ID`. If the panel
+*rejects* a report — usually a bundle id not registered for your project — the step
+fails, because a green step that sent nothing is worse than a red one. If the panel
+is merely unreachable, it warns and your build is untouched.
+
+The analyzer itself still contacts nothing: sending is a separate step on a report
+that already exists, which is what keeps "the scanner never phones home" true
+wherever you run it.
+
+When it is sent, the only thing that goes is the **SARIF**: rule id, file path, line
+number and (if enabled) the code of the offending line — so the panel can show the
+faulty code with the relevant line highlighted. Turn the snippets off with
+`snippets: "false"`, or stop the sending altogether by leaving `panel-url` unset.
+
+Which customer a report belongs to comes from your **licence key**, not from
+anything the recipe sends.
 
 ## Adapting it to your codebase
 
@@ -170,6 +276,25 @@ is there.
 > vendored dependencies and the like. Every scan prints how many files it dropped and
 > why, so a list that grows during a red build shows up in the log.
 
+## Inputs
+
+| Input | Default | Description |
+|---|---|---|
+| `license` | — | **Required.** Your licence key; keep it in a secret. |
+| `path` | `.` | The file or directory to scan. |
+| `fail-on-findings` | `false` | Fail the step when there are findings. |
+| `annotations` | `true` | Inline boxes on the pull request. |
+| `snippets` | `true` | The offending line plus ±2 lines of context in the report. With `false`, no fragment of your code leaves. |
+| `include-tests` | `false` | Scan test code as well. Off by default — see [Test code is skipped](#test-code-is-skipped). |
+| `upload-sarif` | `true` | Attempt to upload to Code Scanning. |
+| `sarif-file` | `logdrop-taint.sarif` | SARIF output path. |
+| `repo-root` | `github.workspace` | The root SARIF paths are relative to. |
+| `panel-url` | *(empty)* | The panel address, if reports should go to the LogDrop panel. **Empty means nothing is sent.** |
+| `bundle-id` | *(empty)* | The application id. Required when `panel-url` is set. |
+| `analyzer-version` | the version tested with this release | You should not need to change it. |
+
+**Outputs:** `findings` (the count), `sarif-file`.
+
 ## Exit codes — the contract every integration rests on
 
 | Code | Meaning | What CI should do |
@@ -189,3 +314,17 @@ Gradle Plugin requires it. No Android SDK, no Gradle, no macOS.
 
 That last one is the difference from the iOS analyzer, which needs a Mac and is billed
 at ten times the rate. This runs on the cheapest Linux runner there is.
+
+## Licence
+
+LogDrop Taint is **commercial software** and runs on a time-limited key. This
+repository distributes the action and the compiled analyzer — it is not open
+source, and the analyzer's source code is not in this repository.
+
+The key is verified **offline**: the program contacts no server, does not count your
+usage and reports to nobody. It warns 14 days before expiry.
+
+To obtain a key: **satis@initialcode.io**
+
+---
+*Initial Code Software Solutions*
