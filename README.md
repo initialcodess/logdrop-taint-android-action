@@ -53,7 +53,7 @@ no macOS. So you are not tied to GitHub Actions:
 
 ```bash
 # Download and verify it once (change the version as needed)
-V=v0.8.1
+V=v0.8.2
 curl -fsSL -o install.sh \
   "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$V/examples/install-logdrop-taint.sh"
 chmod +x install.sh
