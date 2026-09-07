@@ -3,7 +3,7 @@ logdrop-taint:
   stage: test
   image: eclipse-temurin:17-jdk
   variables:
-    LOGDROP_VERSION: "v0.8.2"
+    LOGDROP_VERSION: "v0.9.0"
   cache:
     key: "logdrop-taint-android-$LOGDROP_VERSION"
     paths:
