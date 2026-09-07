@@ -208,6 +208,23 @@ rejected before the scan starts (exit `3`), and the message lists the valid ones
 Silently ignoring it would leave you believing a setting is in force when it never
 was.
 
+## Memory and resource leaks
+
+Off unless you ask for it with `leaks: true`.
+
+Two rules, both CWE-401:
+
+| | |
+|---|---|
+| a screen in static storage | An `Activity`, view or dialog kept in a `static` field or a `companion object`. Static storage is never collected, so neither is the screen — and it brings its whole view tree and its context with it. |
+| a delayed callback that outlives its screen | A `Handler` callback posted with a long delay from a component the framework will destroy, with nothing taking it back off the queue. |
+
+**Why it is off by default.** The first rule measured clean on real applications: every finding we produced was read by hand and every one was a real leak. The second is not there yet — it reports some callbacks that hold nothing at all, because the analysis cannot yet see what a posted callback captures. Rather than ship a pair where one half is noisier than the other, both are opt-in until that gap closes.
+
+Neither rule fails your build unless you also set `fail-on-findings`.
+
+**What stays quiet, deliberately:** an application context in a static field, which is the correct way to hold a context for the life of the process; a field that is set back to `null`; anything behind a `WeakReference`; and a callback posted on a `View`, whose queue is drained when the view detaches.
+
 ## Inputs
 
 | Input | Default | Description |
@@ -218,6 +235,7 @@ was.
 | `annotations` | `true` | Inline boxes on the pull request. |
 | `snippets` | `true` | The offending line plus ±2 lines of context in the report. With `false`, no fragment of your code leaves. |
 | `include-tests` | `false` | Scan test code as well. Off by default — see [Test code is skipped](#test-code-is-skipped). |
+| `leaks` | `false` | Also look for memory and resource leaks — see [Memory and resource leaks](#memory-and-resource-leaks). |
 | `upload-sarif` | `true` | Attempt to upload to Code Scanning. |
 | `sarif-file` | `logdrop-taint.sarif` | SARIF output path. |
 | `repo-root` | `github.workspace` | The root SARIF paths are relative to. |
