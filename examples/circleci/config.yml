@@ -12,22 +12,22 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - logdrop-taint-android-v0.9.0
+            - logdrop-taint-android-v0.10.0
       - run:
           name: Install LogDrop Taint
           command: |
             curl -fsSL -o install.sh \
-              https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/v0.9.0/examples/install-logdrop-taint.sh
+              https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/v0.10.0/examples/install-logdrop-taint.sh
             chmod +x install.sh
-            LOGDROP_VERSION=v0.9.0 LOGDROP_DIR="$HOME/logdrop" ./install.sh
+            LOGDROP_VERSION=v0.10.0 LOGDROP_DIR="$HOME/logdrop" ./install.sh
       - save_cache:
-          key: logdrop-taint-android-v0.9.0
+          key: logdrop-taint-android-v0.10.0
           paths:
             - ~/logdrop
       - run:
           name: Scan
           command: |
-            java -jar "$HOME/logdrop/logdrop-taint-android-v0.9.0.jar" app/src \
+            java -jar "$HOME/logdrop/logdrop-taint-android-v0.10.0.jar" app/src \
               --sarif logdrop-taint.sarif --repo-root "$PWD" \
               --verbose --fail-on-findings
       - run:
@@ -37,7 +37,7 @@ jobs:
           when: always
           command: |
             curl -fsSL -o report.sh \
-              https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/v0.9.0/examples/report-to-panel.sh
+              https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/v0.10.0/examples/report-to-panel.sh
             APP_NAME="$CIRCLE_PROJECT_REPONAME" VERSION="$CIRCLE_BRANCH" \
             COMMIT="$CIRCLE_SHA1" bash report.sh logdrop-taint.sarif
       - store_artifacts:
