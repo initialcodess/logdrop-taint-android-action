@@ -243,6 +243,18 @@ Neither rule fails your build unless you also set `fail-on-findings`.
 | `bundle-id` | *(empty)* | The application id. Required when `panel-url` is set. |
 | `analyzer-version` | the version tested with this release | You should not need to change it. |
 
+### Outputs
+
+| Output | Description |
+|---|---|
+| `sarif-file` | Path of the SARIF that was written. |
+| `findings` | How many findings were reported. |
+| `report-id` | The id the panel filed the report under. Empty when no `panel-url` was given, or when the send did not succeed. |
+
+The id is also printed as a notice and added to the job summary, so it is in the log
+without wiring anything up. Without it the only thing a run said was "sent", which
+leaves no way to find the report again.
+
 **Outputs:** `findings` (the count), `sarif-file`.
 
 ## Exit codes — the contract every integration rests on

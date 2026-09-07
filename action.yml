@@ -66,6 +66,9 @@ outputs:
   findings:
     description: "How many findings were reported."
     value: ${{ steps.scan.outputs.findings }}
+  report-id:
+    description: "Identifier of the report the panel stored. Empty when no panel-url was given, or when the send failed."
+    value: ${{ steps.panel.outputs.report-id }}
 
 runs:
   using: composite
@@ -145,18 +148,97 @@ runs:
       with:
         sarif_file: ${{ inputs.sarif-file }}
 
+    # The POST is written out here rather than fetched. It used to download
+    # examples/report-to-panel.sh from this repository at ${VERSION} — and VERSION was
+    # `github.ref_name`, the CUSTOMER'S branch. On `main` that happened to resolve
+    # because this repository also has a `main`; on any other branch, and on every
+    # release tag, the URL 404s, `curl -fsSL` fails, and the customer's build goes red
+    # for a reason that has nothing to do with their code. Reporting to the panel must
+    # never do that, which the script itself says in its own header.
+    #
+    # The script stays where it is: it is what the CircleCI, GitLab, Jenkins, Bitrise
+    # and Gradle recipes run, and it is the twin of the iOS copy. Only the GitHub path
+    # stopped fetching it, which is also what the iOS action does.
     - name: Send the report to the panel
-      if: ${{ inputs.panel-url != '' && always() }}
+      id: panel
+      if: ${{ always() && inputs.panel-url != '' }}
       shell: bash
+      working-directory: ${{ github.workspace }}
       env:
         PANEL_URL: ${{ inputs.panel-url }}
         BUNDLE_ID: ${{ inputs.bundle-id }}
-        LOGDROP_LICENSE: ${{ inputs.license }}
-        APP_NAME: ${{ github.event.repository.name }}
-        VERSION: ${{ github.ref_name }}
-        COMMIT: ${{ github.sha }}
+        LICENSE: ${{ inputs.license }}
         SARIF_FILE: ${{ inputs.sarif-file }}
+        APP_NAME: ${{ github.event.repository.name }}
+        COMMIT: ${{ github.sha }}
+        REF_NAME: ${{ github.ref_name }}
       run: |
-        curl -fsSL --retry 3 -o "$RUNNER_TEMP/report.sh" \
-          "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/${VERSION}/examples/report-to-panel.sh"
-        bash "$RUNNER_TEMP/report.sh" "$SARIF_FILE"
+        set -uo pipefail
+        if [ -z "$BUNDLE_ID" ]; then
+          echo "::error title=bundle-id missing::panel-url was given but bundle-id was not. The panel uses bundle-id to decide which application a report belongs to."
+          exit 1
+        fi
+        if [ ! -f "$SARIF_FILE" ]; then
+          echo "::warning title=Panel report not sent::No report at '$SARIF_FILE' — the scan wrote nothing to send."
+          exit 0
+        fi
+
+        url="${PANEL_URL%/}/api/reports/sarif"
+        body="$RUNNER_TEMP/panel-response.txt"
+
+        # NO `|| echo 000`: when curl cannot connect, -w already prints "000"; combining
+        # the two yields "000000" and the "panel unreachable" branch never matches.
+        code=$(curl -sS -o "$body" -w '%{http_code}' -X POST "$url" \
+          -H "Authorization: Bearer $LICENSE" \
+          -F "sarif=@$SARIF_FILE" \
+          -F "bundle_id=$BUNDLE_ID" \
+          -F "app_name=$APP_NAME" \
+          -F "version=$REF_NAME" \
+          -F "commit=$COMMIT")
+        code=${code:-000}
+
+        # Sending to the panel does NOT break the build. The scan succeeded and finding
+        # reporting already ran; a pull request turning red while the panel is under
+        # maintenance would be a fault charged to us. Nor does it pass silently.
+        case "$code" in
+          200|201)
+            # The id the panel filed the report under. Printing "sent" and nothing else
+            # leaves no way to reach the report — a customer cannot search the tenant's
+            # report list, and we have had to look one up by hand three times.
+            # `sed` rather than `jq` or `python3`: neither is guaranteed on a customer's
+            # runner, and this must not be the line that fails.
+            report_id=$(sed -n 's/.*"report_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$body" | head -1)
+            if [ -n "$report_id" ]; then
+              echo "report-id=$report_id" >> "$GITHUB_OUTPUT"
+              echo "::notice title=LogDrop panel::Report $report_id was stored by the panel."
+              echo "LogDrop panel report: \`$report_id\`" >> "$GITHUB_STEP_SUMMARY"
+            else
+              # Accepted, but we cannot say what was stored. Not a build failure, and
+              # not silent either — "sent" with no id reads as success and is not.
+              echo "::warning title=Panel report id missing::The panel accepted the report but returned no id: $(head -c 300 "$body")"
+            fi
+            ;;
+          401)
+            echo "::warning title=Panel report not sent::The panel refused the licence key (401). Check the key."
+            ;;
+          403)
+            # A 403 can carry two causes: expired OR revoked. Saying "renew it" would be
+            # misleading for a revocation, so the panel's own explanation is shown.
+            echo "::warning title=Panel report not sent::The panel refused the licence (403): $(head -c 300 "$body") — it may be expired or revoked. satis@initialcode.io"
+            ;;
+          400|422)
+            echo "::warning title=Panel report not sent::The panel rejected the request ($code). Check bundle-id and the SARIF file: $(head -c 300 "$body")"
+            ;;
+          413)
+            echo "::warning title=Panel report not sent::The SARIF exceeded the panel size limit (413). Try narrowing the scan: use exclude in .logdrop.json to drop generated code."
+            ;;
+          503)
+            echo "::warning title=Panel report not sent::The panel is currently unavailable (503). The scan was unaffected; the next run will try again."
+            ;;
+          000)
+            echo "::warning title=Panel report not sent::The panel could not be reached ($PANEL_URL). The scan was unaffected."
+            ;;
+          *)
+            echo "::warning title=Panel report not sent::The panel returned $code: $(head -c 300 "$body")"
+            ;;
+        esac
