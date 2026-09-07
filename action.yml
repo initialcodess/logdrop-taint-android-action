@@ -112,7 +112,13 @@ runs:
         # not offering the input: the customer would have turned it off and still see
         # the findings.
         if [ "$LEAKS" = "false" ]; then args+=(--no-leaks); else args+=(--leaks); fi
-        [ "$SNIPPETS" = "false" ] && args+=(--no-snippets)
+        # BOTH directions here too, for the reason `leaks` needed it: passing a flag
+        # only when it differs from the binary's default means `snippets: true` is a
+        # request the action never actually makes. It works today because the binary
+        # already defaults to snippets on — that is a coincidence, not a contract, and
+        # the day a default moves the input goes silently dead. An input that cannot
+        # be asked for is not an input.
+        if [ "$SNIPPETS" = "false" ]; then args+=(--no-snippets); else args+=(--snippets); fi
         [ "$FAIL_ON" = "true" ] && args+=(--fail-on-findings)
 
         java -jar "$jar" "${args[@]}"
