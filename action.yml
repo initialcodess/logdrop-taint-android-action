@@ -39,9 +39,9 @@ inputs:
     required: false
     default: "false"
   leaks:
-    description: "Also look for memory and resource leaks (CWE-401): a screen held in static storage, and a delayed callback that outlives what posted it. Off by default — the first rule measured clean on real applications, the second still reports some callbacks that hold nothing, so the pair is opt-in until it can see what a callback captures."
+    description: "Look for memory and resource leaks (CWE-401): a screen held in static storage, and a delayed callback that outlives what posted it. On by default. Set false to turn the analysis off entirely — it will not run and its rules will not appear in the report."
     required: false
-    default: "false"
+    default: "true"
   snippets:
     description: "Include the offending line and ±2 lines of context in the report (on by default). Set to 'false' and the report carries only the rule and file:line — not a fragment of your code leaves."
     required: false
@@ -57,7 +57,7 @@ inputs:
   analyzer-version:
     description: "Which analyzer version to download. The default is the one tested with this action release — you should not need to change it."
     required: false
-    default: "v0.9.0"
+    default: "v0.10.0"
 
 outputs:
   sarif-file:
@@ -107,7 +107,11 @@ runs:
         args=("$SCAN_PATH" --sarif "$SARIF_FILE" --repo-root "$REPO_ROOT")
         [ "$ANNOTATE" = "true" ] && args+=(--github-annotations)
         [ "$INCLUDE_TESTS" = "true" ] && args+=(--include-tests)
-        [ "$LEAKS" = "true" ] && args+=(--leaks)
+        # BOTH directions, because the analyzer's own default is now on. Passing only
+        # --leaks would leave `leaks: false` doing nothing at all, which is worse than
+        # not offering the input: the customer would have turned it off and still see
+        # the findings.
+        if [ "$LEAKS" = "false" ]; then args+=(--no-leaks); else args+=(--leaks); fi
         [ "$SNIPPETS" = "false" ] && args+=(--no-snippets)
         [ "$FAIL_ON" = "true" ] && args+=(--fail-on-findings)
 
