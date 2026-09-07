@@ -38,6 +38,10 @@ inputs:
     description: "Scan test code too. Test fixtures are where fake credentials live, so they are skipped by default."
     required: false
     default: "false"
+  leaks:
+    description: "Also look for memory and resource leaks (CWE-401): a screen held in static storage, and a delayed callback that outlives what posted it. Off by default — the first rule measured clean on real applications, the second still reports some callbacks that hold nothing, so the pair is opt-in until it can see what a callback captures."
+    required: false
+    default: "false"
   snippets:
     description: "Include the offending line and ±2 lines of context in the report (on by default). Set to 'false' and the report carries only the rule and file:line — not a fragment of your code leaves."
     required: false
@@ -91,6 +95,7 @@ runs:
         FAIL_ON: ${{ inputs.fail-on-findings }}
         ANNOTATE: ${{ inputs.annotations }}
         INCLUDE_TESTS: ${{ inputs.include-tests }}
+        LEAKS: ${{ inputs.leaks }}
         SNIPPETS: ${{ inputs.snippets }}
         VERSION: ${{ inputs.analyzer-version }}
       run: |
@@ -99,6 +104,7 @@ runs:
         args=("$SCAN_PATH" --sarif "$SARIF_FILE" --repo-root "$REPO_ROOT")
         [ "$ANNOTATE" = "true" ] && args+=(--github-annotations)
         [ "$INCLUDE_TESTS" = "true" ] && args+=(--include-tests)
+        [ "$LEAKS" = "true" ] && args+=(--leaks)
         [ "$SNIPPETS" = "false" ] && args+=(--no-snippets)
         [ "$FAIL_ON" = "true" ] && args+=(--fail-on-findings)
 
