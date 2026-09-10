@@ -54,6 +54,10 @@ inputs:
     description: "The application id (e.g. com.company.app). Required when panel-url is set — the panel merges reports into one app under it."
     required: false
     default: ""
+  fail-on-delivery-error:
+    description: "Fail the step when the report could not be sent to the panel. OFF by default: a panel that is down, a licence moved between projects, or a bundle id deleted in the panel are not things the developer who opened this pull request can fix, and blocking them ends with the action being removed from the pipeline. Turn it on if you want delivery guaranteed."
+    required: false
+    default: "false"
   analyzer-version:
     description: "Which analyzer version to download. The default is the one tested with this action release — you should not need to change it."
     required: false
@@ -169,6 +173,17 @@ runs:
     # The script stays where it is: it is what the CircleCI, GitLab, Jenkins, Bitrise
     # and Gradle recipes run, and it is the twin of the iOS copy. Only the GitHub path
     # stopped fetching it, which is also what the iOS action does.
+    #
+    # NOTHING HERE BREAKS THE BUILD BY DEFAULT, and that is a decision with a reason.
+    # The earlier split — a rejected report failed the build, an unreachable panel did
+    # not — rested on "a 400 is your own fault". It is not always: a bundle id deleted
+    # or renamed in the panel, or a licence moved to another project, answers 400 too,
+    # and the developer whose pull request goes red cannot fix any of them. The action
+    # cannot tell those apart from a typo. The two ways to be wrong do not cost the
+    # same — a build blocked for a reason the team cannot fix ends with the action
+    # removed from the pipeline, while a report that did not arrive is bad but blocks
+    # nobody and is answered with visibility. So delivery is advisory, loudly, and
+    # `fail-on-delivery-error` is there for anyone who wants the hard gate.
     - name: Send the report to the panel
       id: panel
       if: ${{ always() && inputs.panel-url != '' }}
@@ -182,73 +197,153 @@ runs:
         APP_NAME: ${{ github.event.repository.name }}
         COMMIT: ${{ github.sha }}
         REF_NAME: ${{ github.ref_name }}
+        FAIL_ON_DELIVERY: ${{ inputs.fail-on-delivery-error }}
       run: |
         set -uo pipefail
+
+        # Set when the report did not reach the panel, whatever the cause. One flag
+        # rather than a per-code policy: "did your report arrive" is the question a
+        # team can act on, and a rule that needs a table to explain gets misread.
+        failed=""
+        reason=""
+
         if [ -z "$BUNDLE_ID" ]; then
-          echo "::error title=bundle-id missing::panel-url was given but bundle-id was not. The panel uses bundle-id to decide which application a report belongs to."
-          exit 1
+          failed=1
+          reason="panel-url was given but bundle-id was not. The panel uses bundle-id to decide which application a report belongs to."
+        elif [ ! -f "$SARIF_FILE" ]; then
+          failed=1
+          reason="No report at '$SARIF_FILE' — the scan wrote nothing to send."
+        else
+          url="${PANEL_URL%/}/api/reports/sarif"
+          body="$RUNNER_TEMP/panel-response.txt"
+          : > "$body"
+
+          # `|| code=000` IS LOAD-BEARING, and not the same as `|| echo 000`.
+          #
+          # GitHub runs `shell: bash` as `bash --noprofile --norc -e -o pipefail`. The
+          # `set -uo pipefail` above adds u and pipefail; it does NOT clear `-e`. Under
+          # `-e` an assignment from a command substitution carries the command's exit
+          # status, so when curl cannot connect (exit 7) THE STEP DIES ON THIS LINE:
+          # `000` is never assigned, the `000)` branch never runs, the
+          # fail-on-delivery-error gate is skipped entirely, and the build fails with
+          # curl's code — breaking the one promise this step exists to keep, in the most
+          # likely failure there is. A command that is part of a `||` list is exempt from
+          # `-e`, which is what makes the fix work.
+          #
+          # It must be `|| code=000`, NOT `|| echo 000`. curl's -w already prints "000"
+          # when it cannot connect; appending another to stdout yields "000000", which
+          # matches no branch below and falls through to the catch-all. Assigning the
+          # variable replaces that output instead of adding to it. Both spellings look
+          # equivalent and only one is.
+          code=$(curl -sS -o "$body" -w '%{http_code}' -X POST "$url" \
+            -H "Authorization: Bearer $LICENSE" \
+            -F "sarif=@$SARIF_FILE" \
+            -F "bundle_id=$BUNDLE_ID" \
+            -F "app_name=$APP_NAME" \
+            -F "version=$REF_NAME" \
+            -F "commit=$COMMIT") || code=000
+          # Same trap as the curl line, and it bit immediately: when curl never
+          # connected there is no response file, `head` fails, and `-e` kills the step
+          # before the 000 branch can run.
+          #
+          # TWO LAYERS, AND NEITHER IS LOAD-BEARING ALONE. Measured: delete `: > "$body"`
+          # and everything still passes; delete this `|| detail=""` and everything still
+          # passes; delete BOTH and the unreachable-panel check goes red. So whoever
+          # reads one of them in isolation will correctly find it redundant and can
+          # remove it without any check objecting — and the day the other one goes too,
+          # the step is silently back to dying on an unreachable panel.
+          #
+          # They are kept because they fail differently. `: >` answers "the file is
+          # missing"; the guard answers "the read did not work", whatever the reason,
+          # and does not depend on a line thirty lines above staying where it is.
+          detail=$(head -c 300 "$body" 2>/dev/null) || detail=""
+
+          case "$code" in
+            200|201)
+              # The id the panel filed the report under. Printing "sent" and nothing else
+              # leaves no way to reach the report — a customer cannot search the tenant's
+              # report list, and we have had to look one up by hand three times.
+              # `sed` rather than `jq` or `python3`: neither is guaranteed on a customer's
+              # runner, and this must not be the line that fails.
+              report_id=$(sed -n 's/.*"report_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$body" | head -1)
+              if [ -n "$report_id" ]; then
+                echo "report-id=$report_id" >> "$GITHUB_OUTPUT"
+                echo "::notice title=LogDrop panel::Report $report_id was stored by the panel."
+                echo "LogDrop panel report: \`$report_id\`" >> "$GITHUB_STEP_SUMMARY"
+              else
+                # Accepted, but we cannot say what was stored. NOT counted as a delivery
+                # failure — the panel said it took the report — but not silent either,
+                # because "sent" with no id reads as success and leaves nothing to open.
+                echo "::warning title=Panel report id missing::The panel accepted the report but returned no id: $detail"
+              fi
+              ;;
+            401)
+              reason="The panel could not read the licence key (401). Check the licence secret — a line break in the value is the usual cause."
+              failed=1
+              ;;
+            403)
+              # 403 carries two causes: expired OR revoked. Saying "renew it" would be
+              # misleading for a revocation, so the panel's own explanation is shown.
+              reason="The panel did not accept the licence (403): $detail — it may be expired or revoked. satis@initialcode.io"
+              failed=1
+              ;;
+            400|422)
+              reason="The panel rejected the report ($code): $detail — check that the bundle id is registered for this project and that the licence covers it. Nothing was stored."
+              failed=1
+              ;;
+            413)
+              reason="The report exceeded the panel's size limit (413). Narrow the scan with 'exclude' in .logdrop.json to drop generated code."
+              failed=1
+              ;;
+            503)
+              reason="The panel is currently unavailable (503). The scan was unaffected; the next run will try again."
+              failed=1
+              ;;
+            000)
+              reason="The panel could not be reached ($PANEL_URL). The scan was unaffected."
+              failed=1
+              ;;
+            *)
+              reason="The panel returned $code: $detail"
+              failed=1
+              ;;
+          esac
         fi
-        if [ ! -f "$SARIF_FILE" ]; then
-          echo "::warning title=Panel report not sent::No report at '$SARIF_FILE' — the scan wrote nothing to send."
-          exit 0
+
+        if [ -n "$failed" ]; then
+          # report-id stays EMPTY on purpose, and is written explicitly so the intent is
+          # visible: a workflow can gate its own step on it without parsing any log.
+          echo "report-id=" >> "$GITHUB_OUTPUT"
+          echo "::warning title=LogDrop report NOT sent to the panel::$reason"
+
+          # Placed before OUR OWN output, which means before the findings table the scan
+          # step already appended. That is the whole claim, and it is deliberately not
+          # "at the top of the job summary": $GITHUB_STEP_SUMMARY is append-only, any
+          # later step in the customer's workflow adds below us, and a promise about
+          # THEIR ordering is one we cannot keep. The warning above is what actually
+          # puts this at the top — GitHub groups annotations in their own block, so
+          # prominence comes from the channel, not from byte order in a file.
+          #
+          # Rewriting the file is the only way to get ahead of a previous step's text.
+          # If that fails for any reason, append instead: being in the wrong position
+          # is a small loss, losing the warning entirely is not.
+          notice="$RUNNER_TEMP/logdrop-summary.md"
+          {
+            echo "> [!WARNING]"
+            echo "> **LogDrop: the report was NOT sent to the panel.**"
+            echo ">"
+            echo "> $reason"
+            echo ""
+            [ -f "$GITHUB_STEP_SUMMARY" ] && cat "$GITHUB_STEP_SUMMARY"
+          } > "$notice" && mv "$notice" "$GITHUB_STEP_SUMMARY" || {
+            echo "> [!WARNING]" >> "$GITHUB_STEP_SUMMARY"
+            echo "> **LogDrop: the report was NOT sent to the panel.** $reason" >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          if [ "$FAIL_ON_DELIVERY" = "true" ]; then
+            echo "::error title=LogDrop delivery failed::fail-on-delivery-error is on, so this is a build failure."
+            exit 1
+          fi
         fi
 
-        url="${PANEL_URL%/}/api/reports/sarif"
-        body="$RUNNER_TEMP/panel-response.txt"
-
-        # NO `|| echo 000`: when curl cannot connect, -w already prints "000"; combining
-        # the two yields "000000" and the "panel unreachable" branch never matches.
-        code=$(curl -sS -o "$body" -w '%{http_code}' -X POST "$url" \
-          -H "Authorization: Bearer $LICENSE" \
-          -F "sarif=@$SARIF_FILE" \
-          -F "bundle_id=$BUNDLE_ID" \
-          -F "app_name=$APP_NAME" \
-          -F "version=$REF_NAME" \
-          -F "commit=$COMMIT")
-        code=${code:-000}
-
-        # Sending to the panel does NOT break the build. The scan succeeded and finding
-        # reporting already ran; a pull request turning red while the panel is under
-        # maintenance would be a fault charged to us. Nor does it pass silently.
-        case "$code" in
-          200|201)
-            # The id the panel filed the report under. Printing "sent" and nothing else
-            # leaves no way to reach the report — a customer cannot search the tenant's
-            # report list, and we have had to look one up by hand three times.
-            # `sed` rather than `jq` or `python3`: neither is guaranteed on a customer's
-            # runner, and this must not be the line that fails.
-            report_id=$(sed -n 's/.*"report_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$body" | head -1)
-            if [ -n "$report_id" ]; then
-              echo "report-id=$report_id" >> "$GITHUB_OUTPUT"
-              echo "::notice title=LogDrop panel::Report $report_id was stored by the panel."
-              echo "LogDrop panel report: \`$report_id\`" >> "$GITHUB_STEP_SUMMARY"
-            else
-              # Accepted, but we cannot say what was stored. Not a build failure, and
-              # not silent either — "sent" with no id reads as success and is not.
-              echo "::warning title=Panel report id missing::The panel accepted the report but returned no id: $(head -c 300 "$body")"
-            fi
-            ;;
-          401)
-            echo "::warning title=Panel report not sent::The panel refused the licence key (401). Check the key."
-            ;;
-          403)
-            # A 403 can carry two causes: expired OR revoked. Saying "renew it" would be
-            # misleading for a revocation, so the panel's own explanation is shown.
-            echo "::warning title=Panel report not sent::The panel refused the licence (403): $(head -c 300 "$body") — it may be expired or revoked. satis@initialcode.io"
-            ;;
-          400|422)
-            echo "::warning title=Panel report not sent::The panel rejected the request ($code). Check bundle-id and the SARIF file: $(head -c 300 "$body")"
-            ;;
-          413)
-            echo "::warning title=Panel report not sent::The SARIF exceeded the panel size limit (413). Try narrowing the scan: use exclude in .logdrop.json to drop generated code."
-            ;;
-          503)
-            echo "::warning title=Panel report not sent::The panel is currently unavailable (503). The scan was unaffected; the next run will try again."
-            ;;
-          000)
-            echo "::warning title=Panel report not sent::The panel could not be reached ($PANEL_URL). The scan was unaffected."
-            ;;
-          *)
-            echo "::warning title=Panel report not sent::The panel returned $code: $(head -c 300 "$body")"
-            ;;
-        esac
+        exit 0
