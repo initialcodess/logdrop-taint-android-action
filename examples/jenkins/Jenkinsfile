@@ -3,7 +3,7 @@ pipeline {
     agent any
 
     environment {
-        LOGDROP_VERSION = 'v0.10.0'
+        LOGDROP_VERSION = 'v1.0.0'
         LOGDROP_LICENSE = credentials('logdrop-license')
     }
 
