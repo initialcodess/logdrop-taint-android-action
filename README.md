@@ -36,7 +36,7 @@ jobs:
       security-events: write      # only if you upload to Code Scanning
     steps:
       - uses: actions/checkout@v4
-      - uses: initialcodess/logdrop-taint-android-action@v0
+      - uses: initialcodess/logdrop-taint-android-action@v1
         with:
           license: ${{ secrets.LOGDROP_LICENSE }}
           path: app/src
@@ -53,7 +53,7 @@ no macOS. So you are not tied to GitHub Actions:
 
 ```bash
 # Download and verify it once (change the version as needed)
-V=v0.10.0
+V=v1.0.0
 curl -fsSL -o install.sh \
   "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$V/examples/install-logdrop-taint.sh"
 chmod +x install.sh
@@ -140,7 +140,7 @@ for the same app on one screen, and carry "this is a false positive" decisions
 across scans, you can send the report to the panel:
 
 ```yaml
-- uses: initialcodess/logdrop-taint-android-action@v0
+- uses: initialcodess/logdrop-taint-android-action@v1
   with:
     license: ${{ secrets.LOGDROP_LICENSE }}
     path: app/src
