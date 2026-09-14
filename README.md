@@ -36,7 +36,7 @@ jobs:
       security-events: write      # only if you upload to Code Scanning
     steps:
       - uses: actions/checkout@v4
-      - uses: initialcodess/logdrop-taint-android-action@v1
+      - uses: initialcodess/logdrop-taint-android-action@8aaf03503ba2455bc90ca6dde2bd13a71fe7b1f3  # v1.0.0
         with:
           license: ${{ secrets.LOGDROP_LICENSE }}
           path: app/src
@@ -45,6 +45,42 @@ jobs:
 
 Findings appear three ways, all free on every plan: a box above the line in *Files
 changed*, a table in the job summary, and the failed check that blocks the merge.
+
+### If you want the weaker check refused
+
+The jar is verified against a checksum carried inside this action. An action pinned
+to an older commit can still install a newer analyzer — one its table does not know —
+and then falls back to the checksum published beside the jar. That detects a corrupt
+download, not a replaced one, and it says so in the log and as a warning annotation.
+
+To refuse that instead:
+
+```yaml
+    with:
+      require-pinned-checksum: "true"
+```
+
+It fails before downloading anything. Off by default, for the same reason
+`fail-on-findings` is: the default that serves the most people is the one that does
+not break a pipeline over something its owner cannot fix that morning.
+
+### Why a commit hash and not `@v1`
+
+`@v1` is a pointer we move. Whoever can move it decides what runs in your CI with
+your source checked out — and the jar this action installs is verified against a
+checksum that **travels inside the action**, so the pin is what gives that check its
+force. Name a commit and both are fixed: replacing a release is no longer enough,
+because the expected checksum sits in a commit you named.
+
+`@v1` still works and still tracks the latest 1.x. It asks you to trust us
+continuously rather than once, which is a reasonable thing to choose — it should
+just be a choice rather than the only option shown.
+
+The hash above is `v1.0.0`. Find a later one with:
+
+```bash
+gh api repos/initialcodess/logdrop-taint-android-action/commits/v1 --jq .sha
+```
 
 ## Using it without GitHub (your machine, your server)
 
