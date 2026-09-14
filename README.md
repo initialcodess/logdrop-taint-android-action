@@ -7,7 +7,7 @@ an Intent, what a server returned, a constant in the code — to a *sink*, and r
 ones that arrive unsanitised carrying a label that sink accepts.
 
 The iOS counterpart is
-[logdrop-taint-action](https://github.com/initialcodess/logdrop-taint-action). Both
+[logdrop-taint-ios-action](https://github.com/initialcodess/logdrop-taint-ios-action). Both
 produce the same report shape, so a repository running each sees one kind of finding.
 
 ## Your source never leaves the machine
