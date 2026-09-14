@@ -54,6 +54,10 @@ inputs:
     description: "The application id (e.g. com.company.app). Required when panel-url is set — the panel merges reports into one app under it."
     required: false
     default: ""
+  require-pinned-checksum:
+    description: "Fail when the analyzer version being installed has no checksum inside this action. OFF by default: an older pinned action can still install a newer analyzer, verified against the checksum published beside it — which detects a corrupt download but not a replaced one, and says so. Turn it on to refuse that weaker check instead."
+    required: false
+    default: "false"
   fail-on-delivery-error:
     description: "Fail the step when the report could not be sent to the panel. OFF by default: a panel that is down, a licence moved between projects, or a bundle id deleted in the panel are not things the developer who opened this pull request can fix, and blocking them ends with the action being removed from the pipeline. Turn it on if you want delivery guaranteed."
     required: false
@@ -84,12 +88,25 @@ runs:
       shell: bash
       env:
         VERSION: ${{ inputs.analyzer-version }}
+        REQUIRE_PINNED: ${{ inputs.require-pinned-checksum }}
       run: |
         set -euo pipefail
-        curl -fsSL --retry 3 -o "$RUNNER_TEMP/install.sh" \
-          "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/${VERSION}/examples/install-logdrop-taint.sh"
-        chmod +x "$RUNNER_TEMP/install.sh"
-        LOGDROP_VERSION="$VERSION" LOGDROP_DIR="$RUNNER_TEMP/logdrop" "$RUNNER_TEMP/install.sh"
+        # THE INSTALLER IS NOT FETCHED. It ships with this action, so it is whatever
+        # the commit you pinned contains — including the checksum it verifies the jar
+        # against. Downloading it from a tag meant the script running on your machine
+        # could change without the pin changing, which makes pinning decorative.
+        #
+        # The URL this replaces already caused one outage: it interpolated
+        # github.ref_name, the CUSTOMER'S branch, and 404'd on every branch but main.
+        # Naming our own version fixed that — correct, and still a moving reference.
+        # Reading the file next to us removes the fetch entirely.
+        installer="$GITHUB_ACTION_PATH/examples/install-logdrop-taint.sh"
+        if [ ! -f "$installer" ]; then
+          echo "::error title=LogDrop action is incomplete::$installer is missing; the action was not checked out whole."
+          exit 1
+        fi
+        LOGDROP_VERSION="$VERSION" LOGDROP_DIR="$RUNNER_TEMP/logdrop" \
+          LOGDROP_REQUIRE_PINNED_CHECKSUM="$REQUIRE_PINNED" bash "$installer"
 
     - name: Scan
       id: scan
@@ -158,7 +175,14 @@ runs:
     - name: Upload to Code Scanning
       if: ${{ inputs.upload-sarif == 'true' && always() }}
       continue-on-error: true
-      uses: github/codeql-action/upload-sarif@v3
+      # PINNED TO A COMMIT, not @v3. This runs inside the customer's CI with their
+      # source checked out; a moving tag means its owner decides what executes there,
+      # whenever they like. GitHub's own action, so the risk is low — but "low" is a
+      # judgement about the owner, and a pin does not require one.
+      # faaca9a8 is v3 as of 14 Sep 2026. Resolve a new one with
+      #   gh api repos/github/codeql-action/commits/v3 --jq .sha
+      # NOT git/ref/tags/v3, which returns the tag object and will not resolve here.
+      uses: github/codeql-action/upload-sarif@faaca9a8f6edddba5725ffe5adefdab6669a2eca
       with:
         sarif_file: ${{ inputs.sarif-file }}
 
