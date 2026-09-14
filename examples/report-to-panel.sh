@@ -13,7 +13,7 @@
 # Everywhere else — CircleCI, GitLab, Jenkins, Bitrise, a Gradle task, a laptop —
 # this script is that step.
 #
-# THIS FILE IS A TWIN of the one in initialcodess/logdrop-taint-action, and the two
+# THIS FILE IS A TWIN of the one in initialcodess/logdrop-taint-ios-action, and the two
 # must stay identical from `set -uo pipefail` down. The report is the same SARIF
 # whichever analyzer produced it, and the panel has one endpoint, so a fix that
 # lands on one side and not the other means two products disagreeing about how to
