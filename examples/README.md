@@ -7,9 +7,31 @@ a JVM 17 or newer — no Android SDK, no Gradle, no macOS.
 
 ```
 1. DOWNLOAD  →  once, per version (cacheable)
-2. VERIFY    →  SHA-256; a corrupt or altered jar never scans
+2. VERIFY    →  SHA-256, against a checksum that ships with the recipe
 3. RUN       →  the exit code makes the decision
 ```
+
+### Why these recipes name a commit and not a version
+
+Each recipe fetches the installer from `raw.githubusercontent.com` at a **commit**:
+
+Each recipe sets `LOGDROP_ACTION_SHA` to a full 40-character commit hash and builds
+the URL from it. (No value is quoted here on purpose: an abbreviated one would be
+wrong to copy, and a real one would be a second place to keep in step.)
+
+A tag would be movable, so the script that runs on your machine could change without
+anything you wrote changing. The installer is also what carries the checksum the jar
+is verified against, so a movable ref would make that check movable too.
+
+There is a second, measurable reason. On 15 September 2026 a tag was moved and
+`raw.githubusercontent.com` kept serving the **previous** file for several minutes —
+after the API already reported the new commit, and through a cache-busting query.
+Content at a commit cannot change, so it is never served stale.
+
+`LOGDROP_VERSION` still names the analyzer you install. The two move together at
+release time, and `scripts/verify.sh` checks that the pinned commit can actually
+verify that version.
+
 
 The first two live in [`install-logdrop-taint.sh`](install-logdrop-taint.sh), and
 every recipe below calls it. On GitHub Actions you do not even need that — the

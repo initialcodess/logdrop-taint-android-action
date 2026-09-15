@@ -4,6 +4,8 @@ logdrop-taint:
   image: eclipse-temurin:17-jdk
   variables:
     LOGDROP_VERSION: "v1.0.0"
+    # Pinned to a COMMIT, not a tag — see examples/README.md.
+    LOGDROP_ACTION_SHA: "77f8b4934122e483489d76466c33d80a92e7fa8f"
   cache:
     key: "logdrop-taint-android-$LOGDROP_VERSION"
     paths:
@@ -12,7 +14,7 @@ logdrop-taint:
     - apt-get update -qq && apt-get install -y -qq curl python3
     - |
       curl -fsSL -o install.sh \
-        "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_VERSION/examples/install-logdrop-taint.sh"
+        "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_ACTION_SHA/examples/install-logdrop-taint.sh"
       chmod +x install.sh
       LOGDROP_DIR="$CI_PROJECT_DIR/.logdrop" ./install.sh
     - |
@@ -22,7 +24,7 @@ logdrop-taint:
   after_script:
     - |
       curl -fsSL -o report.sh \
-        https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_VERSION/examples/report-to-panel.sh
+        https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_ACTION_SHA/examples/report-to-panel.sh
       APP_NAME="$CI_PROJECT_NAME" VERSION="$CI_COMMIT_REF_NAME" \
       COMMIT="$CI_COMMIT_SHA" bash report.sh logdrop-taint.sarif || true
   artifacts:
