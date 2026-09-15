@@ -36,7 +36,7 @@ jobs:
       security-events: write      # only if you upload to Code Scanning
     steps:
       - uses: actions/checkout@v4
-      - uses: initialcodess/logdrop-taint-android-action@8aaf03503ba2455bc90ca6dde2bd13a71fe7b1f3  # v1.0.0
+      - uses: initialcodess/logdrop-taint-android-action@77f8b4934122e483489d76466c33d80a92e7fa8f  # v1
         with:
           license: ${{ secrets.LOGDROP_LICENSE }}
           path: app/src
@@ -76,7 +76,7 @@ because the expected checksum sits in a commit you named.
 continuously rather than once, which is a reasonable thing to choose — it should
 just be a choice rather than the only option shown.
 
-The hash above is `v1.0.0`. Find a later one with:
+The hash above is what `v1` points to today. Find the current one with:
 
 ```bash
 gh api repos/initialcodess/logdrop-taint-android-action/commits/v1 --jq .sha
@@ -88,10 +88,12 @@ The analyzer is **a single jar** and needs only a JVM — no Android SDK, no Gra
 no macOS. So you are not tied to GitHub Actions:
 
 ```bash
-# Download and verify it once (change the version as needed)
+# Download and verify it once. V is the analyzer; SHA pins the installer, because a
+# tag can move and the installer is what checks the jar.
 V=v1.0.0
+LOGDROP_ACTION_SHA=77f8b4934122e483489d76466c33d80a92e7fa8f
 curl -fsSL -o install.sh \
-  "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$V/examples/install-logdrop-taint.sh"
+  "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_ACTION_SHA/examples/install-logdrop-taint.sh"
 chmod +x install.sh
 LOGDROP_VERSION=$V LOGDROP_DIR="$HOME/logdrop" ./install.sh   # checks the SHA-256
 

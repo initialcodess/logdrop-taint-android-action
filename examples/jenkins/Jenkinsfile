@@ -4,6 +4,8 @@ pipeline {
 
     environment {
         LOGDROP_VERSION = 'v1.0.0'
+        // Pinned to a COMMIT, not a tag — see examples/README.md.
+        LOGDROP_ACTION_SHA = '77f8b4934122e483489d76466c33d80a92e7fa8f'
         LOGDROP_LICENSE = credentials('logdrop-license')
     }
 
@@ -12,7 +14,7 @@ pipeline {
             steps {
                 sh '''
                     curl -fsSL -o install.sh \
-                      "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_VERSION/examples/install-logdrop-taint.sh"
+                      "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_ACTION_SHA/examples/install-logdrop-taint.sh"
                     chmod +x install.sh
                     LOGDROP_DIR="$WORKSPACE/.logdrop" ./install.sh
                 '''
@@ -34,7 +36,7 @@ pipeline {
         always {
             sh '''
                 curl -fsSL -o report.sh \
-                  https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_VERSION/examples/report-to-panel.sh
+                  https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_ACTION_SHA/examples/report-to-panel.sh
                 APP_NAME="$JOB_NAME" VERSION="$BRANCH_NAME" COMMIT="$GIT_COMMIT" \
                   bash report.sh logdrop-taint.sarif || true
             '''

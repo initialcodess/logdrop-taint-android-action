@@ -11,6 +11,8 @@
 // then `./gradlew logdropTaint`.
 
 val logdropVersion = "v1.0.0"
+// Pinned to a COMMIT, not a tag — see examples/README.md.
+val logdropActionSha = "77f8b4934122e483489d76466c33d80a92e7fa8f"
 val logdropDir = layout.buildDirectory.dir("logdrop").get().asFile
 
 tasks.register("logdropInstall") {
@@ -23,7 +25,7 @@ tasks.register("logdropInstall") {
         script.writeText(
             java.net.URI(
                 "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/" +
-                    "$logdropVersion/examples/install-logdrop-taint.sh"
+                    "$logdropActionSha/examples/install-logdrop-taint.sh"
             ).toURL().readText()
         )
         providers.exec {
