@@ -10,7 +10,7 @@
 //
 // then `./gradlew logdropTaint`.
 
-val logdropVersion = "v1.0.0"
+val logdropVersion = "v1.0.2"
 // Pinned to a COMMIT, not a tag — see examples/README.md.
 val logdropActionSha = "77f8b4934122e483489d76466c33d80a92e7fa8f"
 val logdropDir = layout.buildDirectory.dir("logdrop").get().asFile
