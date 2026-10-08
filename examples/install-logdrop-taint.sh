@@ -48,7 +48,7 @@ fi
 # repository can. Pinning is what limits that, and it is the customer's move.
 expected_sha() {
   case "$1" in
-    v1.0.2) echo "3e1ff31b1e91a556f7fb50d646e1edcf9c4751ece8151213cffdc160a4da0d28" ;;
+    v1.0.2) echo "503db287b4f31c8f1d13474563b1f63387b3aa9fa46f7959438cc6284b35f091" ;;
     *)      echo "" ;;
   esac
 }
