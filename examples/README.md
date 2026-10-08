@@ -140,7 +140,7 @@ the free tiers of most providers, nothing at all.
 Point the same jar at your source before you push:
 
 ```bash
-java -jar "$HOME/logdrop/logdrop-taint-android-v1.0.0.jar" app/src \
+java -jar "$HOME/logdrop/logdrop-taint-android-v1.0.2.jar" app/src \
   --sarif logdrop-taint.sarif --verbose
 ```
 

@@ -90,7 +90,7 @@ no macOS. So you are not tied to GitHub Actions:
 ```bash
 # Download and verify it once. V is the analyzer; SHA pins the installer, because a
 # tag can move and the installer is what checks the jar.
-V=v1.0.0
+V=v1.0.2
 LOGDROP_ACTION_SHA=77f8b4934122e483489d76466c33d80a92e7fa8f
 curl -fsSL -o install.sh \
   "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_ACTION_SHA/examples/install-logdrop-taint.sh"

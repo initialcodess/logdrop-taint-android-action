@@ -2,14 +2,14 @@
 #
 # Download the LogDrop Taint analyzer for Android and check it before use.
 #
-#   LOGDROP_VERSION=v1.0.0 LOGDROP_DIR="$HOME/.logdrop" ./install-logdrop-taint.sh
+#   LOGDROP_VERSION=v1.0.2 LOGDROP_DIR="$HOME/.logdrop" ./install-logdrop-taint.sh
 #
 # Nothing is compiled on your machine and no access to your source is needed: the jar
 # arrives prebuilt. It runs on any JVM 17 or newer, which every machine that builds an
 # Android app already has — the Android Gradle Plugin requires it.
 set -euo pipefail
 
-VERSION="${LOGDROP_VERSION:-v1.0.0}"
+VERSION="${LOGDROP_VERSION:-v1.0.2}"
 DIR="${LOGDROP_DIR:-$PWD/logdrop}"
 REPO="initialcodess/logdrop-taint-android-action"
 JAR="logdrop-taint-android-${VERSION}.jar"
@@ -48,7 +48,7 @@ fi
 # repository can. Pinning is what limits that, and it is the customer's move.
 expected_sha() {
   case "$1" in
-    v1.0.0) echo "3e1ff31b1e91a556f7fb50d646e1edcf9c4751ece8151213cffdc160a4da0d28" ;;
+    v1.0.2) echo "3e1ff31b1e91a556f7fb50d646e1edcf9c4751ece8151213cffdc160a4da0d28" ;;
     *)      echo "" ;;
   esac
 }
