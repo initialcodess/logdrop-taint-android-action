@@ -3,7 +3,7 @@ logdrop-taint:
   stage: test
   image: eclipse-temurin:17-jdk
   variables:
-    LOGDROP_VERSION: "v1.0.2"
+    LOGDROP_VERSION: "v1.0.3"
     # Pinned to a COMMIT, not a tag — see examples/README.md.
     LOGDROP_ACTION_SHA: "2829cafe15d639fd12860b70f63a405041db14e6"
   cache:
