@@ -5,7 +5,7 @@ pipeline {
     environment {
         LOGDROP_VERSION = 'v1.0.3'
         // Pinned to a COMMIT, not a tag — see examples/README.md.
-        LOGDROP_ACTION_SHA = '2829cafe15d639fd12860b70f63a405041db14e6'
+        LOGDROP_ACTION_SHA = '03e0af2d38851f0b5d8365ff6d53d1f0adea3809'
         LOGDROP_LICENSE = credentials('logdrop-license')
     }
 
