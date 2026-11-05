@@ -36,7 +36,7 @@ jobs:
       security-events: write      # only if you upload to Code Scanning
     steps:
       - uses: actions/checkout@v4
-      - uses: initialcodess/logdrop-taint-android-action@2829cafe15d639fd12860b70f63a405041db14e6  # v1
+      - uses: initialcodess/logdrop-taint-android-action@03e0af2d38851f0b5d8365ff6d53d1f0adea3809  # v1
         with:
           license: ${{ secrets.LOGDROP_LICENSE }}
           path: app/src
@@ -91,7 +91,7 @@ no macOS. So you are not tied to GitHub Actions:
 # Download and verify it once. V is the analyzer; SHA pins the installer, because a
 # tag can move and the installer is what checks the jar.
 V=v1.0.3
-LOGDROP_ACTION_SHA=2829cafe15d639fd12860b70f63a405041db14e6
+LOGDROP_ACTION_SHA=03e0af2d38851f0b5d8365ff6d53d1f0adea3809
 curl -fsSL -o install.sh \
   "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_ACTION_SHA/examples/install-logdrop-taint.sh"
 chmod +x install.sh
