@@ -90,7 +90,7 @@ no macOS. So you are not tied to GitHub Actions:
 ```bash
 # Download and verify it once. V is the analyzer; SHA pins the installer, because a
 # tag can move and the installer is what checks the jar.
-V=v1.0.3
+V=v1.1.0
 LOGDROP_ACTION_SHA=03e0af2d38851f0b5d8365ff6d53d1f0adea3809
 curl -fsSL -o install.sh \
   "https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/$LOGDROP_ACTION_SHA/examples/install-logdrop-taint.sh"
@@ -158,6 +158,7 @@ Set `include-tests: "true"` to scan them anyway.
 | A key hardcoded in the source reaches `SecretKeySpec` | CWE-321 |
 | Personal data or a credential is copied to the clipboard | CWE-200 |
 | User or network data is built into a selection clause instead of `selectionArgs` | CWE-943 |
+| `BiometricPrompt` success is trusted on its own, with no `CryptoObject` binding a key to it (a rooted device can fake the callback) | CWE-287 |
 
 `EncryptedSharedPreferences` is the **fix**, not the bug, and is never reported — even
 though it is used through exactly the same `edit().putString(...)` calls.
