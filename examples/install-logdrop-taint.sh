@@ -2,14 +2,14 @@
 #
 # Download the LogDrop Taint analyzer for Android and check it before use.
 #
-#   LOGDROP_VERSION=v1.0.3 LOGDROP_DIR="$HOME/.logdrop" ./install-logdrop-taint.sh
+#   LOGDROP_VERSION=v1.1.0 LOGDROP_DIR="$HOME/.logdrop" ./install-logdrop-taint.sh
 #
 # Nothing is compiled on your machine and no access to your source is needed: the jar
 # arrives prebuilt. It runs on any JVM 17 or newer, which every machine that builds an
 # Android app already has — the Android Gradle Plugin requires it.
 set -euo pipefail
 
-VERSION="${LOGDROP_VERSION:-v1.0.3}"
+VERSION="${LOGDROP_VERSION:-v1.1.0}"
 DIR="${LOGDROP_DIR:-$PWD/logdrop}"
 REPO="initialcodess/logdrop-taint-android-action"
 JAR="logdrop-taint-android-${VERSION}.jar"
@@ -51,6 +51,7 @@ expected_sha() {
     v1.0.0) echo "3e1ff31b1e91a556f7fb50d646e1edcf9c4751ece8151213cffdc160a4da0d28" ;;
     v1.0.2) echo "503db287b4f31c8f1d13474563b1f63387b3aa9fa46f7959438cc6284b35f091" ;;
     v1.0.3) echo "ea9630b6616ddefee3478353276ae332e8857eb34677b15a6c8290b3debe8ef0" ;;
+    v1.1.0) echo "24c45e316d71c2bf050b368b68d51c943b80b5b0728b7ad7eb8ecfc1754a53f9" ;;
     *)      echo "" ;;
   esac
 }

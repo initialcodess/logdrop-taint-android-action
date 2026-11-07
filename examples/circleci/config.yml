@@ -12,22 +12,22 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - logdrop-taint-android-v1.0.3
+            - logdrop-taint-android-v1.1.0
       - run:
           name: Install LogDrop Taint
           command: |
             curl -fsSL -o install.sh \
               https://raw.githubusercontent.com/initialcodess/logdrop-taint-android-action/03e0af2d38851f0b5d8365ff6d53d1f0adea3809/examples/install-logdrop-taint.sh
             chmod +x install.sh
-            LOGDROP_VERSION=v1.0.3 LOGDROP_DIR="$HOME/logdrop" ./install.sh
+            LOGDROP_VERSION=v1.1.0 LOGDROP_DIR="$HOME/logdrop" ./install.sh
       - save_cache:
-          key: logdrop-taint-android-v1.0.3
+          key: logdrop-taint-android-v1.1.0
           paths:
             - ~/logdrop
       - run:
           name: Scan
           command: |
-            java -jar "$HOME/logdrop/logdrop-taint-android-v1.0.3.jar" app/src \
+            java -jar "$HOME/logdrop/logdrop-taint-android-v1.1.0.jar" app/src \
               --sarif logdrop-taint.sarif --repo-root "$PWD" \
               --verbose --fail-on-findings
       - run:
