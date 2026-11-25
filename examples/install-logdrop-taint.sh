@@ -52,7 +52,7 @@ expected_sha() {
     v1.0.2) echo "503db287b4f31c8f1d13474563b1f63387b3aa9fa46f7959438cc6284b35f091" ;;
     v1.0.3) echo "ea9630b6616ddefee3478353276ae332e8857eb34677b15a6c8290b3debe8ef0" ;;
     v1.1.0) echo "24c45e316d71c2bf050b368b68d51c943b80b5b0728b7ad7eb8ecfc1754a53f9" ;;
-    v1.2.0) echo "5b21366f8f880c7e6e5a9e589a6bc1b33069b7732ec04e56786f52cdbfcb36fa" ;;
+    v1.2.0) echo "5af0cdc4b4dd48d9ad97c14bb6079d67bfa0f19ccac76b31a9a8185463ac4f30" ;;
     *)      echo "" ;;
   esac
 }
