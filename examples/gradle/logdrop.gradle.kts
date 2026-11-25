@@ -12,7 +12,7 @@
 
 val logdropVersion = "v1.2.0"
 // Pinned to a COMMIT, not a tag — see examples/README.md.
-val logdropActionSha = "edfefde2923a62f5b1af370f2383384a3bef40cb"
+val logdropActionSha = "cbf7db6602730a830b0b6270af156113718867a9"
 val logdropDir = layout.buildDirectory.dir("logdrop").get().asFile
 
 tasks.register("logdropInstall") {
