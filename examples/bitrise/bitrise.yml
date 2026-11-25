@@ -2,7 +2,7 @@
 workflows:
   security-scan:
     envs:
-      - LOGDROP_VERSION: v1.1.0
+      - LOGDROP_VERSION: v1.2.0
       # Pinned to a COMMIT, not a tag — see examples/README.md.
       - LOGDROP_ACTION_SHA: edfefde2923a62f5b1af370f2383384a3bef40cb
     steps:
