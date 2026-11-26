@@ -29,8 +29,8 @@ after the API already reported the new commit, and through a cache-busting query
 Content at a commit cannot change, so it is never served stale.
 
 `LOGDROP_VERSION` still names the analyzer you install. The two move together at
-release time, and `scripts/verify.sh` checks that the pinned commit can actually
-verify that version.
+release time, and our release checks (in the private source repository, not here)
+confirm that the pinned commit can actually verify that version.
 
 
 The first two live in [`install-logdrop-taint.sh`](install-logdrop-taint.sh), and
@@ -56,22 +56,24 @@ the recipe. Miss one and nothing is sent, quietly — so if the dashboard stays 
 check that all three are actually reaching the job.
 
 **The bundle id must be registered for that project in the panel.** One the panel
-does not recognise is refused outright, nothing is stored, and the step fails. That
-is deliberate: a typo you can see beats a green pipeline that sent nothing.
+does not recognise is refused outright and nothing is stored. By default the step
+prints a prominent warning and exits 0; set `FAIL_ON_DELIVERY_ERROR=true` to make it
+exit 1, so that a typo cannot hide behind a green pipeline.
 
 **The analyzer itself never contacts anything.** It verifies its licence offline,
 counts no usage and does not report that it ran. Sending is a separate step, on a
 report that already exists, run by you — which is why it is a script you can read
 rather than a flag inside the jar.
 
-**A rejected report fails the build; a panel that is down does not.** If the panel
-refuses the report — the usual cause is a `BUNDLE_ID` not registered for your
-project — the step exits non-zero and you see it. A step that stayed green while no
-report ever arrived is the failure nobody notices until someone asks why the
-dashboard is empty.
+**By default no delivery outcome fails the build.** If the panel refuses the report —
+the usual cause is a `BUNDLE_ID` not registered for your project, though a bundle id
+renamed in the panel looks the same — the script prints a prominent warning and exits
+0. Set `FAIL_ON_DELIVERY_ERROR=true` for the hard gate: then any failure to deliver
+exits 1, which is what you want if a report that never arrived must not go unnoticed.
 
 If the panel is unreachable, under maintenance, or simply not configured, the step
-exits 0 and your build is untouched. The scan's exit code already said what it
+exits 0 and your build is untouched (unless you set `FAIL_ON_DELIVERY_ERROR=true`, which
+turns any failed delivery into exit 1; an unset `PANEL_URL` is never a failure). The scan's exit code already said what it
 found, and a maintenance window on our side must not turn your green build red an
 hour later. An expired or revoked licence is in this second group too: the
 developer who pushed the commit cannot fix it, so it warns rather than blocks.
@@ -148,5 +150,5 @@ Leave `--fail-on-findings` off locally. On your own machine this is a warning la
 the gate belongs in CI, where it blocks the merge. A scan that broke the build every
 time you typed a half-finished line would be turned off within a day.
 
-The Gradle recipe wraps exactly this, so `./gradlew logdropScan` does the same thing
+The Gradle recipe wraps exactly this, so `./gradlew logdropTaint` does the same thing
 without remembering the path.

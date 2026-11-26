@@ -135,8 +135,10 @@ it **does not break the build**.
 
 Test fixtures are where fake credentials live, and nothing in the code distinguishes
 `password = "test"` in a test helper from the real thing — same write, same type,
-same field name. Files under `src/test` or `src/androidTest`, or named `*Test.kt` /
-`*Test.java`, are left out by default.
+same field name. A file is left out by default when a directory in its path is named
+`test`, `androidTest`, `Test`, `Tests`, `testFixtures` or ends in `Tests`, or when its
+name ends in `Test`, `Tests` or `Spec` (`*Test.kt`, `*Spec.java` and so on). Matching
+is on whole path components, so `Contest.kt` is still scanned.
 
 It is not done quietly — the step prints what it skipped:
 
@@ -146,6 +148,10 @@ Skipped 214 test file(s). Use --include-tests to scan them.
 
 A file named directly on the command line is always scanned, whatever it is called.
 Set `include-tests: "true"` to scan them anyway.
+
+Separately, when a directory is scanned, anything under a directory named `build` or
+`.gradle` is skipped as generated output. That one is **not** counted in the line
+above and is not printed.
 
 ## What it finds
 
@@ -184,7 +190,7 @@ across scans, you can send the report to the panel:
     license: ${{ secrets.LOGDROP_LICENSE }}
     path: app/src
     bundle-id: com.company.app           # required when sending to the panel
-    panel-url: https://panel.logdrop.io
+    panel-url: https://analyze.logdrop.io
 ```
 
 **Off by default.** Without `panel-url` nothing is sent and the scan stays entirely
@@ -192,16 +198,20 @@ local.
 
 Sending needs three things together — `panel-url`, `license` and `bundle-id`. Miss
 any one and nothing is sent. **`bundle-id` must be the id registered for that
-project in the panel**: an id the panel does not recognise is refused and the step
-fails, so a typo is loud rather than silent.
+project in the panel**: an id the panel does not recognise is refused and nothing is
+stored. By default that is a prominent warning and the step still exits 0, because a
+bundle id deleted in the panel is not something the developer who opened the pull
+request can fix. Set `fail-on-delivery-error: "true"` to make a failed delivery fail
+the step instead.
 
 Not on GitHub Actions? Every recipe under [`examples/`](examples) ends by calling
 [`examples/report-to-panel.sh`](examples/report-to-panel.sh), which does the same
 POST from CircleCI, GitLab, Jenkins, Bitrise or a laptop. It does nothing until you
 set all three of `PANEL_URL`, `LOGDROP_LICENSE` and `BUNDLE_ID`. If the panel
-*rejects* a report — usually a bundle id not registered for your project — the step
-fails, because a green step that sent nothing is worse than a red one. If the panel
-is merely unreachable, it warns and your build is untouched.
+*rejects* a report — usually a bundle id not registered for your project — or is
+unreachable, the script prints a prominent warning and exits 0, so your build is
+untouched. Set `FAIL_ON_DELIVERY_ERROR=true` if you want the hard gate: then any
+failure to deliver exits 1.
 
 The analyzer itself still contacts nothing: sending is a separate step on a report
 that already exists, which is what keeps "the scanner never phones home" true
@@ -278,6 +288,8 @@ Two rules, both CWE-401:
 | `upload-sarif` | `true` | Attempt to upload to Code Scanning. |
 | `sarif-file` | `logdrop-taint.sarif` | SARIF output path. |
 | `repo-root` | `github.workspace` | The root SARIF paths are relative to. |
+| `require-pinned-checksum` | `false` | Fail when the analyzer version being installed has no checksum inside this action, instead of falling back to the weaker check against the checksum published beside the release. |
+| `fail-on-delivery-error` | `false` | Fail the step when the report could not be sent to the panel. Off by default: a panel that is down or a bundle id changed in the panel is not something the developer who opened the pull request can fix. |
 | `panel-url` | *(empty)* | The panel address, if reports should go to the LogDrop panel. **Empty means nothing is sent.** |
 | `bundle-id` | *(empty)* | The application id. Required when `panel-url` is set. |
 | `analyzer-version` | the version tested with this release | You should not need to change it. |
@@ -294,14 +306,12 @@ The id is also printed as a notice and added to the job summary, so it is in the
 without wiring anything up. Without it the only thing a run said was "sent", which
 leaves no way to find the report again.
 
-**Outputs:** `findings` (the count), `sarif-file`.
-
 ## Exit codes — the contract every integration rests on
 
 | Code | Meaning | What CI should do |
 |---|---|---|
 | `0` | Clean | Carry on |
-| `1` | Findings (with `--fail-on-findings`) | Fail the build, block the pull request |
+| `1` | Findings of level `error` or `warning` (with `--fail-on-findings`). `note`-level and suppressed findings never cause it | Fail the build, block the pull request |
 | `2` | Licence missing / invalid / expired | Fail, but DO NOT say "your code has a vulnerability" |
 | `3` | An error in the arguments or `.logdrop.json` | Fail, fix the configuration |
 
