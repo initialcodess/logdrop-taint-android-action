@@ -22,9 +22,9 @@
 # It is duplicated rather than shared because the Android recipes used to curl the
 # iOS copy from that repository's MOVING `v1` tag. It worked — until iOS releases
 # v2, or the script grows something iOS-specific, at which point Android breaks for
-# a reason nobody would look for in an iOS changelog. `scripts/verify.sh` compares
-# the two and fails when they drift, and it now also compares them against the
-# GitHub Action, which must break the build on exactly the same conditions.
+# a reason nobody would look for in an iOS changelog. The release checks in our private
+# source repository compare the two and fail when they drift. They also compare them
+# against the GitHub Action, which must break the build on exactly the same conditions.
 #
 # USAGE
 #   PANEL_URL=https://panel.example.com \

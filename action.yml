@@ -142,8 +142,15 @@ runs:
         if [ "$SNIPPETS" = "false" ]; then args+=(--no-snippets); else args+=(--snippets); fi
         [ "$FAIL_ON" = "true" ] && args+=(--fail-on-findings)
 
-        java -jar "$jar" "${args[@]}"
-        code=$?
+        # `|| code=$?` IS LOAD-BEARING. GitHub runs `shell: bash` as `bash --noprofile
+        # --norc -e -o pipefail`; the `set -uo pipefail` above does not clear `-e`. A bare
+        # `java ...` followed by `code=$?` dies on the java line when the analyzer exits
+        # non-zero (1 with fail-on-findings), so the job summary and the `findings`
+        # output below were skipped on exactly the run that has findings. A command that
+        # is part of a `||` list is exempt from `-e`; the exit code is unchanged and is
+        # still passed through at the end. The same trap is described at the panel step.
+        code=0
+        java -jar "$jar" "${args[@]}" || code=$?
 
         # The count is read from the SARIF rather than scraped from the output: a
         # message people improve is a message that silently changes shape.
