@@ -4,7 +4,7 @@ workflows:
     envs:
       - LOGDROP_VERSION: v1.2.0
       # Pinned to a COMMIT, not a tag — see examples/README.md.
-      - LOGDROP_ACTION_SHA: cbf7db6602730a830b0b6270af156113718867a9
+      - LOGDROP_ACTION_SHA: d67a098a5e163ae083b9ecb80d3011e4b10af29a
     steps:
       - activate-ssh-key: {}
       - git-clone: {}
